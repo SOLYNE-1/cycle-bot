@@ -653,7 +653,7 @@ async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> No
         {datetime.strptime(d, "%Y-%m-%d").date() for d in history_strs + [current_start_str]}
     )
 
-    lines = ["🗓 *История твоих циклов*\n"]
+    lines = ["🗓 История твоих циклов\n"]
     completed_lengths = []
 
     for i, start in enumerate(all_starts):
@@ -662,32 +662,31 @@ async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> No
             end = all_starts[i + 1]
             length = (end - start).days
             completed_lengths.append(length)
-            lines.append(f"{num}\\. Цикл: {start.strftime('%d.%m')} — {end.strftime('%d.%m')} ({length} дней) ✅")
+            lines.append(f"{num}. Цикл: {start.strftime('%d.%m')} — {end.strftime('%d.%m')} ({length} дней) ✅")
         else:
             days_running = (today - start).days + 1
-            lines.append(f"{num}\\. Текущий цикл: начался {start.strftime('%d.%m')} (идёт {days_running} дн\\.)")
+            lines.append(f"{num}. Текущий цикл: начался {start.strftime('%d.%m')} (идёт {days_running} дн.)")
 
     lines.append("")
 
     if len(completed_lengths) < 2:
         lines.append(
-            "Пока недостаточно данных для статистики\\.\n"
-            "Запиши хотя бы 2 цикла\\!"
+            "Пока недостаточно данных для статистики.\n"
+            "Запиши хотя бы 2 цикла!"
         )
     else:
         avg = sum(completed_lengths) / len(completed_lengths)
         shortest = min(completed_lengths)
         longest = max(completed_lengths)
         total = len(all_starts)
-        lines.append("📊 *Твоя статистика:*")
-        lines.append(f"\\- Средняя длина цикла: {avg:.1f} дней")
-        lines.append(f"\\- Самый короткий: {shortest} дней")
-        lines.append(f"\\- Самый длинный: {longest} дней")
-        lines.append(f"\\- Всего циклов записано: {total}")
+        lines.append("📊 Твоя статистика:")
+        lines.append(f"- Средняя длина цикла: {avg:.1f} дней")
+        lines.append(f"- Самый короткий: {shortest} дней")
+        lines.append(f"- Самый длинный: {longest} дней")
+        lines.append(f"- Всего циклов записано: {total}")
 
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode="MarkdownV2",
         reply_markup=main_menu(),
     )
 
