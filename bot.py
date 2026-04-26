@@ -69,6 +69,7 @@ MONTH_GENITIVE = {
 MENU_NEWCYCLE = "🩸 Начать цикл"
 MENU_STATUS   = "📊 Мой статус"
 MENU_NEXT     = "⏰ Следующий цикл"
+MENU_HISTORY  = "📋 История"
 MENU_SETTINGS = "⚙️ Настройки"
 
 
@@ -157,7 +158,8 @@ def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
             [KeyboardButton(MENU_NEWCYCLE), KeyboardButton(MENU_STATUS)],
-            [KeyboardButton(MENU_NEXT),     KeyboardButton(MENU_SETTINGS)],
+            [KeyboardButton(MENU_NEXT),     KeyboardButton(MENU_HISTORY)],
+            [KeyboardButton(MENU_SETTINGS)],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -348,6 +350,9 @@ def record_new_cycle(chat_id: str, data: dict, cycle_date: Optional[date] = None
     if "last_period_start" in user_data:
         last_period = datetime.strptime(user_data["last_period_start"], "%Y-%m-%d").date()
         actual_days = (target - last_period).days
+        history = user_data.setdefault("cycle_history", [])
+        if user_data["last_period_start"] not in history:
+            history.append(user_data["last_period_start"])
 
     user_data["last_period_start"] = target.isoformat()
     user_data["reminder_sent"] = False
@@ -607,7 +612,7 @@ async def cmd_next_cycle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text
-    menu_texts = {MENU_NEWCYCLE, MENU_STATUS, MENU_NEXT, MENU_SETTINGS}
+    menu_texts = {MENU_NEWCYCLE, MENU_STATUS, MENU_NEXT, MENU_HISTORY, MENU_SETTINGS}
 
     if context.user_data.get("awaiting_cycle_date") and text not in menu_texts:
         await handle_cycle_date_input(update, context)
@@ -621,8 +626,70 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await cmd_status(update, context)
     elif text == MENU_NEXT:
         await cmd_next_cycle(update, context)
+    elif text == MENU_HISTORY:
+        await cmd_history(update, context)
     elif text == MENU_SETTINGS:
         await cmd_settings(update, context)
+
+
+async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = str(update.message.chat_id)
+    data = load_data()
+
+    if chat_id not in data or "last_period_start" not in data[chat_id]:
+        await update.message.reply_text(
+            "⚠️ Нет данных о циклах. Нажми 🩸 Начать цикл",
+            reply_markup=main_menu(),
+        )
+        return
+
+    user_data = data[chat_id]
+    today = date.today()
+
+    history_strs = user_data.get("cycle_history", [])
+    current_start_str = user_data["last_period_start"]
+
+    all_starts = sorted(
+        {datetime.strptime(d, "%Y-%m-%d").date() for d in history_strs + [current_start_str]}
+    )
+
+    lines = ["🗓 *История твоих циклов*\n"]
+    completed_lengths = []
+
+    for i, start in enumerate(all_starts):
+        num = i + 1
+        if i < len(all_starts) - 1:
+            end = all_starts[i + 1]
+            length = (end - start).days
+            completed_lengths.append(length)
+            lines.append(f"{num}\\. Цикл: {start.strftime('%d.%m')} — {end.strftime('%d.%m')} ({length} дней) ✅")
+        else:
+            days_running = (today - start).days + 1
+            lines.append(f"{num}\\. Текущий цикл: начался {start.strftime('%d.%m')} (идёт {days_running} дн\\.)")
+
+    lines.append("")
+
+    if len(completed_lengths) < 2:
+        lines.append(
+            "Пока недостаточно данных для статистики\\.\n"
+            "Запиши хотя бы 2 цикла\\!"
+        )
+    else:
+        avg = sum(completed_lengths) / len(completed_lengths)
+        shortest = min(completed_lengths)
+        longest = max(completed_lengths)
+        total = len(all_starts)
+        lines.append("📊 *Твоя статистика:*")
+        lines.append(f"\\- Средняя длина цикла: {avg:.1f} дней")
+        lines.append(f"\\- Самый короткий: {shortest} дней")
+        lines.append(f"\\- Самый длинный: {longest} дней")
+        lines.append(f"\\- Всего циклов записано: {total}")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="MarkdownV2",
+        reply_markup=main_menu(),
+    )
 
 
 # ---------------------------------------------------------------------------
